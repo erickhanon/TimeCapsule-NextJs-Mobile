@@ -1,4 +1,6 @@
 import { StatusBar } from 'expo-status-bar'
+import { useRouter } from 'expo-router'
+import * as SecureStore from 'expo-secure-store'
 import {
   ImageBackground,
   View,
@@ -6,28 +8,60 @@ import {
   TouchableOpacity,
   Linking,
 } from 'react-native'
-import bg from './src/assets/bg.png'
+import bg from '../src/assets/bg.png'
 import { styled } from 'nativewind'
-import Logo from './src/assets/logo.svg'
-
+import Logo from '../src/assets/logo.svg'
 import {
   useFonts,
   Roboto_400Regular,
   Roboto_700Bold,
 } from '@expo-google-fonts/roboto'
-
 import { BaiJamjuree_700Bold } from '@expo-google-fonts/bai-jamjuree'
-
-import Stripes from './src/assets/stripes.svg'
+import Stripes from '../src/assets/stripes.svg'
+import { useAuthRequest, makeRedirectUri } from 'expo-auth-session'
+import { useEffect } from 'react'
+import { api } from '../src/lib/api'
 
 const StyledStripes = styled(Stripes)
+const discovery = {
+  authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+  tokenEndpoint: 'https://github.com/login/oauth/access_token',
+  revocationEndpoint:
+    'https://github.com/settings/connections/applications/f48a95062aeb1eb1ff8c',
+}
 
 export default function App() {
+  const router = useRouter()
+
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
     BaiJamjuree_700Bold,
   })
+  const [, response, signInWithGithub] = useAuthRequest(
+    {
+      clientId: 'f48a95062aeb1eb1ff8c',
+      scopes: ['identity'],
+      redirectUri: makeRedirectUri({
+        scheme: 'timecapsule',
+      }),
+    },
+    discovery,
+  )
+
+  async function handleGithubResponse(code: string) {
+    const response = await api.post('/register', { code })
+    const { token } = response.data
+    await SecureStore.setItemAsync('token', token)
+    router.push('/memories')
+  }
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { code } = response.params
+      handleGithubResponse(code)
+    }
+  }, [response])
 
   if (!fontsLoaded) {
     return null
@@ -51,7 +85,10 @@ export default function App() {
             Guarde todos os momentos os importantes da sua vida!
           </Text>
         </View>
-        <TouchableOpacity className="rounded-full bg-green-500 px-5 py-2">
+        <TouchableOpacity
+          className="rounded-full bg-green-500 px-5 py-2"
+          onPress={() => signInWithGithub()}
+        >
           <Text className="font-title text-sm uppercase">
             Guarde Uma Lembrança
           </Text>
